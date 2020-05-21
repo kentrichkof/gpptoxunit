@@ -3,6 +3,7 @@
 from os import path
 import re
 from xml.sax.saxutils import escape
+import argparse
 
 UNIT_RE = r"((\/[\w]+)+\.o)"
 UNIT_RE_CMP = re.compile(UNIT_RE)
@@ -61,10 +62,45 @@ def parse_errors(unit):
     return errors
 
 
+def serialize(errors, target_file):
+    with open(target_file, 'w') as xml_file:
+        xml_file.write('<?xml version="1.0"?>\n<testsuites>\n')
+        for unit in errors:
+            xml_file.write('\t<testsuite name="{name}">\n'.format(name=unit['unit']))
+            count = 0
+            for error in unit['errors']:
+                count += 1
+                err_info = error['info']
+                err_type = escape(err_info['type'])
+                err_desc = escape(err_info['description'])
+                fail_msg = "{line}: ({level}) {message}".format(
+                    line=err_info['line'],
+                    level=err_type,
+                    message=err_desc
+                )
+                xml_file.write('\t\t<testcase name="{name}-{count}">\n'.format(name=unit['unit'], count=count))
+                xml_file.write('\t\t\t<failure message="{message}" type="{level}">\n\t\t\t\t'.format(message=fail_msg,
+                                                                                                    level=err_type))
+                xml_file.write('\n\t\t\t\t'.join([escape(x) for x in error['trace']]))
+                xml_file.write('\n\t\t\t\t')
+                xml_file.write('\n\t\t\t\t'.join([escape(x) for x in error['message']]))
+                xml_file.write('\n\t\t\t</failure>\n')
+                xml_file.write('\t\t</testcase>\n')
+            xml_file.write('\t</testsuite>\n')
+        xml_file.write('</testsuites>\n')
+
+
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("input_file", type=str,
+                        help="input file")
+    parser.add_argument("-o", "--output", type=str,
+                        help="output file", default="gpptoxunit.xml")
+    args = parser.parse_args()
+
     sep_unit = []
     n_err = []
-    with open('error.log') as err_file:
+    with open(args.input_file) as err_file:
         for raw_line in err_file.readlines():
             line = raw_line.strip()
             n_err.append(raw_line)
@@ -80,31 +116,7 @@ def main():
         proper_errs.append(err)
         errors = parse_errors(unit)
         err['errors'] = errors
-
-    with open("cpptojunit.xml", 'w') as xml_file:
-        xml_file.write('<?xml version="1.0"?>\n<testsuites>\n')
-        for unit in proper_errs:
-            xml_file.write('\t<testsuite name="{name}">\n'.format(name=unit['unit']))
-            count = 0
-            for error in unit['errors']:
-                count += 1
-                err_info = error['info']
-                err_type = escape(err_info['type'])
-                err_desc = escape(err_info['description'])
-                fail_msg = "{line}: ({level}) {message}".format(
-                        line=err_info['line'],
-                        level=err_type,
-                        message=err_desc
-                    )
-                xml_file.write('\t\t<testcase name="{name}-{count}">\n'.format(name=unit['unit'], count=count))
-                xml_file.write('\t\t\t<failure message="{message} type="{level}">\n\t\t\t\t'.format(message=fail_msg, level=err_type))
-                xml_file.write('\n\t\t\t\t'.join([escape(x) for x in error['trace']]))
-                xml_file.write('\n\t\t\t\t')
-                xml_file.write('\n\t\t\t\t'.join([escape(x) for x in error['message']]))
-                xml_file.write('\n\t\t\t</failure>\n')
-                xml_file.write('\t\t</testcase>\n')
-            xml_file.write('\t</testsuite>\n')
-        xml_file.write('</testsuites>\n')
+    serialize(proper_errs, args.output)
 
 
 if __name__ == "__main__":
