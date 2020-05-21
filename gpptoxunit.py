@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+VERSION = "0.0.0"
+
 from os import path
 import re
 from xml.sax.saxutils import escape
@@ -93,10 +95,15 @@ def serialize(errors, target_file):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("input_file", type=str,
-                        help="input file")
+                        help="input file", nargs='?')
     parser.add_argument("-o", "--output", type=str,
                         help="output file", default="gpptoxunit.xml")
+    parser.add_argument("--version", action="store_true")
     args = parser.parse_args()
+
+    if args.version:
+        print(VERSION)
+        exit(0)
 
     sep_unit = []
     n_err = []
